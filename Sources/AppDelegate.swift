@@ -2,10 +2,20 @@ import AppKit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Ensure the app can show windows even though it's a background app
-        NSApp.setActivationPolicy(.regular)
+        // Set as accessory app (shows in menu bar, no dock icon)
+        NSApp.setActivationPolicy(.accessory)
         
-        // Hide the dock icon
+        // Disable automatic window tabbing
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
+    
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        // Don't quit when last window is closed
+        return false
+    }
+    
+    func applicationDidResignActive(_ notification: Notification) {
+        // Ensure we stay in accessory mode when inactive
         NSApp.setActivationPolicy(.accessory)
     }
 } 

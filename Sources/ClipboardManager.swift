@@ -9,9 +9,11 @@ class ClipboardManager: ObservableObject {
     @Published var formattedContent: String = ""
     @Published var contentType: ContentType = .plainText
     @Published var windowItems: [WindowItem] = []
+    @Published var hasFormattedContent: Bool = false
     
     private var lastChangeCount: Int
     private var timer: Timer?
+    private var notificationObserver: Any?
     
     enum ContentType {
         case plainText
@@ -41,19 +43,28 @@ class ClipboardManager: ObservableObject {
         startMonitoring()
         
         // Set up notification for window closing
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(windowWillClose(_:)),
-            name: NSWindow.willCloseNotification,
-            object: nil
-        )
-    }
-    
-    @objc private func windowWillClose(_ notification: Notification) {
-        guard let closedWindow = notification.object as? NSWindow else { return }
-        DispatchQueue.main.async {
+        notificationObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let closedWindow = notification.object as? NSWindow else { return }
             self.windowItems.removeAll { $0.window == closedWindow }
         }
+    }
+    
+    deinit {
+        if let observer = notificationObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        timer?.invalidate()
+        
+        // Clean up windows
+        for item in windowItems {
+            item.window.close()
+        }
+        windowItems.removeAll()
     }
     
     private func startMonitoring() {
@@ -70,6 +81,7 @@ class ClipboardManager: ObservableObject {
         
         if let newString = pasteboard.string(forType: .string) {
             currentContent = newString
+            hasFormattedContent = false
             detectContentType()
             formatContent()
             createAndShowWindow()
@@ -77,7 +89,9 @@ class ClipboardManager: ObservableObject {
     }
     
     private func createAndShowWindow() {
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
             let contentView = ContentView()
                 .environmentObject(self)
             
@@ -90,6 +104,7 @@ class ClipboardManager: ObservableObject {
             window.title = "Clipboard Preview"
             window.contentView = NSHostingView(rootView: contentView)
             window.center()
+            window.isReleasedWhenClosed = false
             
             let windowItem = WindowItem(
                 id: UUID(),
@@ -100,18 +115,13 @@ class ClipboardManager: ObservableObject {
             
             self.windowItems.append(windowItem)
             
-            // Ensure we're on the main thread and the app is active
-            DispatchQueue.main.async {
-                NSApp.setActivationPolicy(.regular)
-                window.makeKeyAndOrderFront(nil)
-                NSApp.activate(ignoringOtherApps: true)
-            }
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
     
     func showWindow(_ windowItem: WindowItem) {
         DispatchQueue.main.async {
-            NSApp.setActivationPolicy(.regular)
             windowItem.window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
@@ -165,6 +175,7 @@ class ClipboardManager: ObservableObject {
             formatMarkdown()
         case .plainText:
             formattedContent = currentContent
+            hasFormattedContent = false
         }
     }
     
@@ -174,17 +185,21 @@ class ClipboardManager: ObservableObject {
               let prettyData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]),
               let prettyString = String(data: prettyData, encoding: .utf8) else {
             formattedContent = currentContent
+            hasFormattedContent = false
             return
         }
         formattedContent = prettyString
+        hasFormattedContent = true
     }
     
     private func formatHTML() {
         do {
             let doc = try SwiftSoup.parse(currentContent)
             formattedContent = try doc.outerHtml()
+            hasFormattedContent = true
         } catch {
             formattedContent = currentContent
+            hasFormattedContent = false
         }
     }
     
@@ -202,17 +217,17 @@ class ClipboardManager: ObservableObject {
             .joined(separator: "\n")
         
         formattedContent = formatted
+        hasFormattedContent = formatted != currentContent
     }
     
     private func formatMarkdown() {
-        if let down = try? Down(markdownString: currentContent) {
-            if let html = try? down.toHTML() {
-                formattedContent = html
-            } else {
-                formattedContent = currentContent
-            }
+        if let down = try? Down(markdownString: currentContent),
+           let html = try? down.toHTML() {
+            formattedContent = html
+            hasFormattedContent = true
         } else {
             formattedContent = currentContent
+            hasFormattedContent = false
         }
     }
 } 

@@ -3,7 +3,7 @@ import Down
 
 struct ContentView: View {
     @EnvironmentObject var clipboardManager: ClipboardManager
-    @State private var selectedTab = 0
+    @State private var selectedTab: Int = 0
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -25,6 +25,11 @@ struct ContentView: View {
         }
         .frame(minWidth: 400, minHeight: 300)
         .padding()
+        .onChange(of: clipboardManager.hasFormattedContent) { success in
+            if success {
+                selectedTab = 1
+            }
+        }
     }
 }
 

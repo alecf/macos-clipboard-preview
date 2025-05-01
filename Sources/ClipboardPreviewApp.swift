@@ -6,9 +6,13 @@ struct ClipboardPreviewApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
-        Settings {
+        WindowGroup {
             EmptyView()
+                .frame(maxWidth: 0, maxHeight: 0)
+                .hidden()
         }
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 0, height: 0)
         
         MenuBarExtra {
             VStack {

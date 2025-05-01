@@ -80,11 +80,13 @@ class ClipboardManager: ObservableObject {
         lastChangeCount = pasteboard.changeCount
         
         if let newString = pasteboard.string(forType: .string) {
-            currentContent = newString
-            hasFormattedContent = false
-            detectContentType()
-            formatContent()
-            createAndShowWindow()
+            DispatchQueue.main.async {
+                self.hasFormattedContent = false  // Reset before processing new content
+                self.currentContent = newString
+                self.detectContentType()
+                self.formatContent()
+                self.createAndShowWindow()
+            }
         }
     }
     
@@ -164,6 +166,10 @@ class ClipboardManager: ObservableObject {
     }
     
     private func formatContent() {
+        // Reset formatted content
+        formattedContent = currentContent
+        hasFormattedContent = contentType != .plainText  // Set based on content type
+        
         switch contentType {
         case .json:
             formatJSON()
@@ -174,8 +180,7 @@ class ClipboardManager: ObservableObject {
         case .markdown:
             formatMarkdown()
         case .plainText:
-            formattedContent = currentContent
-            hasFormattedContent = false
+            break
         }
     }
     
@@ -184,50 +189,42 @@ class ClipboardManager: ObservableObject {
               let json = try? JSONSerialization.jsonObject(with: data),
               let prettyData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]),
               let prettyString = String(data: prettyData, encoding: .utf8) else {
-            formattedContent = currentContent
-            hasFormattedContent = false
+            hasFormattedContent = false  // Only set to false if formatting fails
             return
         }
+        
         formattedContent = prettyString
-        hasFormattedContent = true
     }
     
     private func formatHTML() {
         do {
             let doc = try SwiftSoup.parse(currentContent)
             formattedContent = try doc.outerHtml()
-            hasFormattedContent = true
         } catch {
-            formattedContent = currentContent
-            hasFormattedContent = false
+            hasFormattedContent = false  // Only set to false if formatting fails
         }
     }
     
     private func formatCSS() {
-        // Basic CSS formatting
         var formatted = currentContent
             .replacingOccurrences(of: "{", with: " {\n    ")
             .replacingOccurrences(of: "}", with: "\n}\n")
             .replacingOccurrences(of: ";", with: ";\n    ")
         
-        // Clean up extra spaces
         formatted = formatted.components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
         
         formattedContent = formatted
-        hasFormattedContent = formatted != currentContent
     }
     
     private func formatMarkdown() {
         if let down = try? Down(markdownString: currentContent),
            let html = try? down.toHTML() {
             formattedContent = html
-            hasFormattedContent = true
         } else {
-            formattedContent = currentContent
-            hasFormattedContent = false
+            hasFormattedContent = false  // Only set to false if formatting fails
         }
     }
 } 

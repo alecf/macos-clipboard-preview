@@ -25,6 +25,16 @@ struct ContentView: View {
         }
         .frame(minWidth: 400, minHeight: 300)
         .padding()
+        .onAppear {
+            // Set initial tab based on content
+            if clipboardManager.hasFormattedContent {
+                selectedTab = 1
+            }
+        }
+        .onChange(of: clipboardManager.currentContent) { _ in
+            // Reset to preview tab when new content arrives
+            selectedTab = 0
+        }
         .onChange(of: clipboardManager.hasFormattedContent) { success in
             if success {
                 selectedTab = 1

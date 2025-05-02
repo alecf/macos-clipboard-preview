@@ -24,7 +24,8 @@ struct ContentView: View {
             
             // Formatted Tab
             FormattedTab(content: contentManager.formattedContent,
-                        contentType: contentManager.contentType)
+                        contentType: contentManager.contentType,
+                        windowItem: windowItem)
                 .tabItem {
                     Label("Formatted", systemImage: "wand.and.stars")
                 }
@@ -86,6 +87,7 @@ struct FormattedTab: View {
     @EnvironmentObject var contentManager: WindowContentManager
     @EnvironmentObject var clipboardManager: ClipboardManager
     @StateObject private var viewState = ViewState()
+    let windowItem: WindowItem
     
     class ViewState: ObservableObject {
         @Published var coordinator: JSONTreeView.Coordinator?
@@ -146,8 +148,32 @@ struct FormattedTab: View {
                let path = newValue,
                let currentCoordinator = viewState.coordinator,
                let outlineView = currentCoordinator.outlineView {
-                selectedPath = path
-                currentCoordinator.selectItemWithPath(path, in: outlineView)
+                // Try to find the node at the path
+                if let node = findNode(path: path, in: jsonRoot) {
+                    print("Found matching node in window: \(windowItem.id)")
+                    selectedPath = path
+                    currentCoordinator.selectItemWithPath(path, in: outlineView)
+                    
+                    // Raise this window more aggressively
+                    if let window = windowItem.window {
+                        print("Raising window: \(windowItem.id)")
+                        // First make sure the app is active
+                        NSApp.activate(ignoringOtherApps: true)
+                        
+                        // Then bring the window to front
+                        window.level = .floating // Temporarily raise window level
+                        window.makeKeyAndOrderFront(nil)
+                        
+                        // Schedule window level reset
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            window.level = .normal
+                        }
+                    } else {
+                        print("No window reference for item: \(windowItem.id)")
+                    }
+                } else {
+                    print("No matching node found in window: \(windowItem.id)")
+                }
             }
         }
     }
@@ -166,6 +192,22 @@ struct FormattedTab: View {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(content, forType: .string)
+    }
+    
+    private func findNode(path: String, in root: JSONTreeNode?) -> JSONTreeNode? {
+        guard let root = root else { return nil }
+        
+        if root.jsonPath() == path {
+            return root
+        }
+        
+        guard let children = root.children else { return nil }
+        for child in children {
+            if let found = findNode(path: path, in: child) {
+                return found
+            }
+        }
+        return nil
     }
 }
 

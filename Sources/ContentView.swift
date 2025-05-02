@@ -3,7 +3,13 @@ import Down
 
 struct ContentView: View {
     @EnvironmentObject var clipboardManager: ClipboardManager
-    @State private var selectedTab: Int = 0
+    let windowItem: WindowItem
+    @State private var selectedTab: Int
+    
+    init(windowItem: WindowItem) {
+        self.windowItem = windowItem
+        _selectedTab = State(initialValue: windowItem.selectedTab)
+    }
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -26,18 +32,27 @@ struct ContentView: View {
         .frame(minWidth: 400, minHeight: 300)
         .padding()
         .onAppear {
-            // Set initial tab based on content
-            if clipboardManager.hasFormattedContent {
+            // Set initial tab based on content only for new windows
+            if selectedTab == 0 && clipboardManager.hasFormattedContent {
                 selectedTab = 1
             }
         }
         .onChange(of: clipboardManager.currentContent) { _ in
-            // Reset to preview tab when new content arrives
-            selectedTab = 0
+            // Reset to preview tab when new content arrives only if this window matches the current content
+            if windowItem.content == clipboardManager.currentContent {
+                selectedTab = 0
+            }
         }
         .onChange(of: clipboardManager.hasFormattedContent) { success in
-            if success {
+            // Switch to formatted tab only if this window matches the current content
+            if success && windowItem.content == clipboardManager.currentContent {
                 selectedTab = 1
+            }
+        }
+        .onChange(of: selectedTab) { newTab in
+            // Update the window item's selected tab
+            if let index = clipboardManager.windowItems.firstIndex(where: { $0.id == windowItem.id }) {
+                clipboardManager.windowItems[index].selectedTab = newTab
             }
         }
     }

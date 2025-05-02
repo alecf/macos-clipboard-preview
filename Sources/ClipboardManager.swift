@@ -4,6 +4,26 @@ import SwiftSoup
 import Down
 import AppKit
 
+public struct WindowItem: Identifiable {
+    public let id: UUID
+    public let title: String
+    public let content: String
+    public let window: NSWindow
+    public var selectedTab: Int
+    
+    public var previewTitle: String {
+        let maxLength = 30
+        if content.count > maxLength {
+            return String(content.prefix(maxLength)) + "..."
+        }
+        return content
+    }
+    
+    public mutating func updateSelectedTab(_ tab: Int) {
+        selectedTab = tab
+    }
+}
+
 class ClipboardManager: ObservableObject {
     @Published var currentContent: String = ""
     @Published var formattedContent: String = ""
@@ -21,21 +41,6 @@ class ClipboardManager: ObservableObject {
         case html
         case css
         case markdown
-    }
-    
-    struct WindowItem: Identifiable {
-        let id: UUID
-        let title: String
-        let content: String
-        let window: NSWindow
-        
-        var previewTitle: String {
-            let maxLength = 30
-            if content.count > maxLength {
-                return String(content.prefix(maxLength)) + "..."
-            }
-            return content
-        }
     }
     
     init() {
@@ -56,6 +61,14 @@ class ClipboardManager: ObservableObject {
         if let initialContent = NSPasteboard.general.string(forType: .string) {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
+                
+                // Check if we already have a window with this content
+                if let existingItem = self.windowItems.first(where: { $0.content == initialContent }) {
+                    existingItem.window.makeKeyAndOrderFront(nil)
+                    NSApp.activate(ignoringOtherApps: true)
+                    return
+                }
+                
                 self.hasFormattedContent = false  // Reset before processing new content
                 self.currentContent = initialContent
                 self.detectContentType()
@@ -94,6 +107,13 @@ class ClipboardManager: ObservableObject {
         
         if let newString = pasteboard.string(forType: .string) {
             DispatchQueue.main.async {
+                // Check if we already have a window with this content
+                if let existingItem = self.windowItems.first(where: { $0.content == newString }) {
+                    existingItem.window.makeKeyAndOrderFront(nil)
+                    NSApp.activate(ignoringOtherApps: true)
+                    return
+                }
+                
                 self.hasFormattedContent = false  // Reset before processing new content
                 self.currentContent = newString
                 self.detectContentType()
@@ -107,30 +127,28 @@ class ClipboardManager: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            let contentView = ContentView()
-                .environmentObject(self)
-            
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
-                styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                backing: .buffered,
-                defer: false
-            )
-            window.title = "Clipboard Preview"
-            window.contentView = NSHostingView(rootView: contentView)
-            window.center()
-            window.isReleasedWhenClosed = false
-            
             let windowItem = WindowItem(
                 id: UUID(),
                 title: "Clipboard \(self.windowItems.count + 1)",
                 content: self.currentContent,
-                window: window
+                window: NSWindow(
+                    contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+                    styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                    backing: .buffered,
+                    defer: false
+                ),
+                selectedTab: 0  // Start with preview tab
             )
+            
+            windowItem.window.title = "Clipboard Preview"
+            windowItem.window.contentView = NSHostingView(rootView: ContentView(windowItem: windowItem)
+                .environmentObject(self))
+            windowItem.window.center()
+            windowItem.window.isReleasedWhenClosed = false
             
             self.windowItems.append(windowItem)
             
-            window.makeKeyAndOrderFront(nil)
+            windowItem.window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
     }

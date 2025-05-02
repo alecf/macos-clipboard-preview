@@ -1,5 +1,6 @@
 import SwiftUI
 import Down
+import AppKit
 
 struct ContentView: View {
     @EnvironmentObject var clipboardManager: ClipboardManager
@@ -231,5 +232,69 @@ struct WebView: NSViewRepresentable {
         } else {
             textView.string = htmlString
         }
+    }
+}
+
+// --- URL List Window ---
+struct URLListView: View {
+    @EnvironmentObject var clipboardManager: ClipboardManager
+    @Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Copied URLs")
+                    .font(.title2)
+                    .bold()
+                Spacer()
+                Button(action: {
+                    clipboardManager.closeURLListWindow()
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            .padding([.top, .horizontal])
+            
+            Divider()
+            
+            if clipboardManager.copiedURLs.isEmpty {
+                Spacer()
+                Text("No URLs copied yet.")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                Spacer()
+            } else {
+                List {
+                    ForEach(clipboardManager.copiedURLs) { urlItem in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(urlItem.url)
+                                    .font(.body)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Text(urlItem.date, style: .relative)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Button(action: {
+                                clipboardManager.deleteURL(urlItem)
+                            }) {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                            }
+                            .buttonStyle(BorderlessButtonStyle())
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+                .listStyle(PlainListStyle())
+            }
+        }
+        .frame(minWidth: 400, minHeight: 400)
+        .background(colorScheme == .dark ? Color.black : Color(NSColor.windowBackgroundColor))
     }
 } 

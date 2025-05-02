@@ -113,14 +113,31 @@ class WindowContentManager: ObservableObject {
     }
 }
 
+// Model for a copied URL
+struct CopiedURL: Identifiable, Equatable {
+    let id: UUID
+    var url: String
+    var date: Date
+    
+    static func == (lhs: CopiedURL, rhs: CopiedURL) -> Bool {
+        lhs.url == rhs.url
+    }
+}
+
 // Main clipboard manager that monitors the clipboard and manages windows
 class ClipboardManager: ObservableObject {
     @Published var windowItems: [WindowItem] = []
     @Published private(set) var broadcastedJsonPath: String?
     @Published private(set) var broadcastCounter: Int = 0  // Add counter for broadcasts
+    @Published var copiedURLs: [CopiedURL] = [] // Global list of copied URLs
+    fileprivate var urlListWindow: NSWindow? = nil // Singleton window
+    private var urlListWindowDelegate: URLListWindowDelegate? = nil // Strong reference to delegate
     private var lastChangeCount: Int
     private var timer: Timer?
     private var notificationObserver: Any?
+    
+    // Regex for URL detection
+    private let urlRegex = try! NSRegularExpression(pattern: "(https?://[^\\s]+)", options: .caseInsensitive)
     
     init() {
         self.lastChangeCount = NSPasteboard.general.changeCount
@@ -180,10 +197,20 @@ class ClipboardManager: ObservableObject {
     }
     
     private func processNewContent(_ content: String) {
-        // Check if we already have a window with this content
-        if windowItems.contains(where: { $0.content == content }) {
+        // If it's a URL, handle it and return (do not open a preview window)
+        if isURL(content) {
+            checkAndHandleURL(content)
             return
         }
+        // Check if we already have a window with this content
+        if windowItems.contains(where: { $0.content == content }) {
+            // Still check for URL even if duplicate content
+            checkAndHandleURL(content)
+            return
+        }
+        
+        // Check for URL and handle
+        checkAndHandleURL(content)
         
         // Create window
         let window = NSWindow(
@@ -224,6 +251,77 @@ class ClipboardManager: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
     }
     
+    private func checkAndHandleURL(_ content: String) {
+        guard let url = extractURL(from: content) else { return }
+        
+        if let index = copiedURLs.firstIndex(where: { $0.url == url }) {
+            // Update date and move to top
+            copiedURLs[index].date = Date()
+            let updated = copiedURLs.remove(at: index)
+            copiedURLs.insert(updated, at: 0)
+        } else {
+            // Add new URL to top
+            let newURL = CopiedURL(id: UUID(), url: url, date: Date())
+            copiedURLs.insert(newURL, at: 0)
+        }
+        // Open or raise the URL list window
+        showOrRaiseURLListWindow()
+    }
+    
+    private func extractURL(from text: String) -> String? {
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        if let match = urlRegex.firstMatch(in: text, options: [], range: range) {
+            if let urlRange = Range(match.range(at: 1), in: text) {
+                return String(text[urlRange])
+            }
+        }
+        return nil
+    }
+    
+    // Helper to check if content is a URL
+    private func isURL(_ content: String) -> Bool {
+        return extractURL(from: content) != nil
+    }
+    
+    func showOrRaiseURLListWindow() {
+        if let window = urlListWindow {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        // Create the window
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 600),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Copied URLs"
+        window.center()
+        let hostingView = NSHostingView(
+            rootView: URLListView()
+                .environmentObject(self)
+        )
+        window.contentView = hostingView
+        window.isReleasedWhenClosed = false
+        urlListWindowDelegate = URLListWindowDelegate(manager: self)
+        window.delegate = urlListWindowDelegate
+        urlListWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    func closeURLListWindow() {
+        urlListWindow?.close()
+        urlListWindow = nil
+    }
+    
+    func deleteURL(_ url: CopiedURL) {
+        if let index = copiedURLs.firstIndex(of: url) {
+            copiedURLs.remove(at: index)
+        }
+    }
+    
     func showWindow(_ windowItem: WindowItem) {
         guard let window = windowItem.window else { return }
         window.makeKeyAndOrderFront(nil)
@@ -235,5 +333,14 @@ class ClipboardManager: ObservableObject {
             self.broadcastedJsonPath = path
             self.broadcastCounter += 1  // Increment counter on each broadcast
         }
+    }
+}
+
+// Delegate to clear the window reference when closed
+class URLListWindowDelegate: NSObject, NSWindowDelegate {
+    weak var manager: ClipboardManager?
+    init(manager: ClipboardManager) { self.manager = manager }
+    func windowWillClose(_ notification: Notification) {
+        manager?.urlListWindow = nil
     }
 } 

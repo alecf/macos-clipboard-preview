@@ -38,6 +38,17 @@ struct ClipboardPreviewApp: App {
                 
                 Divider()
                 
+                // Add the static URLs entry
+                Button(action: { clipboardManager.showOrRaiseURLListWindow() }) {
+                    HStack {
+                        Image(systemName: "link")
+                        Text("URLs")
+                    }
+                }
+                .padding(.vertical, 4)
+                
+                Divider()
+                
                 Button("Quit") {
                     NSApplication.shared.terminate(nil)
                 }

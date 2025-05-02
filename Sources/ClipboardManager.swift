@@ -13,10 +13,12 @@ public struct WindowItem: Identifiable {
     
     public var previewTitle: String {
         let maxLength = 30
-        if content.count > maxLength {
-            return String(content.prefix(maxLength)) + "..."
+        // First, drop all leading whitespace
+        let noLeadingWhitespace = content.drop(while: { $0.isWhitespace })
+        if noLeadingWhitespace.count > maxLength {
+            return String(noLeadingWhitespace.prefix(maxLength)) + "..."
         }
-        return content
+        return String(noLeadingWhitespace)
     }
     
     public mutating func updateSelectedTab(_ tab: Int) {

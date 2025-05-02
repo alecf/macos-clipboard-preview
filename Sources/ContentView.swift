@@ -93,7 +93,6 @@ struct FormattedTab: View {
         @Published var coordinator: JSONTreeView.Coordinator?
         
         func setCoordinator(_ newCoordinator: JSONTreeView.Coordinator) {
-            print("Setting new coordinator") // Debug print
             coordinator = newCoordinator
         }
     }
@@ -143,20 +142,17 @@ struct FormattedTab: View {
             }
         }
         .onChange(of: clipboardManager.broadcastedJsonPath) { oldValue, newValue in
-            print("Window received broadcast: \(String(describing: newValue))")
             if contentType == .json, // Only handle if we're showing JSON
                let path = newValue,
                let currentCoordinator = viewState.coordinator,
                let outlineView = currentCoordinator.outlineView {
                 // Try to find the node at the path
                 if let node = findNode(path: path, in: jsonRoot) {
-                    print("Found matching node in window: \(windowItem.id)")
                     selectedPath = path
                     currentCoordinator.selectItemWithPath(path, in: outlineView)
                     
                     // Raise this window more aggressively
                     if let window = windowItem.window {
-                        print("Raising window: \(windowItem.id)")
                         // First make sure the app is active
                         NSApp.activate(ignoringOtherApps: true)
                         
@@ -168,11 +164,7 @@ struct FormattedTab: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                             window.level = .normal
                         }
-                    } else {
-                        print("No window reference for item: \(windowItem.id)")
                     }
-                } else {
-                    print("No matching node found in window: \(windowItem.id)")
                 }
             }
         }
@@ -181,11 +173,9 @@ struct FormattedTab: View {
     private func createJSONTree() {
         guard let data = content.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) else {
-            print("Failed to create JSON tree") // Debug print
             return
         }
         jsonRoot = JSONTreeNode(value: json)
-        print("JSON tree created") // Debug print
     }
     
     private func copyToClipboard() {

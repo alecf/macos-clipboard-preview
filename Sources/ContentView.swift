@@ -84,12 +84,14 @@ struct FormattedTab: View {
     @State private var jsonRoot: JSONTreeNode?
     @State private var selectedPath: String = "$"
     @EnvironmentObject var contentManager: WindowContentManager
+    @EnvironmentObject var clipboardManager: ClipboardManager
     @StateObject private var viewState = ViewState()
     
     class ViewState: ObservableObject {
         @Published var coordinator: JSONTreeView.Coordinator?
         
         func setCoordinator(_ newCoordinator: JSONTreeView.Coordinator) {
+            print("Setting new coordinator") // Debug print
             coordinator = newCoordinator
         }
     }
@@ -138,8 +140,10 @@ struct FormattedTab: View {
                 createJSONTree()
             }
         }
-        .onChange(of: contentManager.broadcastedJsonPath) { oldValue, newValue in
-            if let path = newValue,
+        .onChange(of: clipboardManager.broadcastedJsonPath) { oldValue, newValue in
+            print("Window received broadcast: \(String(describing: newValue))")
+            if contentType == .json, // Only handle if we're showing JSON
+               let path = newValue,
                let currentCoordinator = viewState.coordinator,
                let outlineView = currentCoordinator.outlineView {
                 selectedPath = path
@@ -151,9 +155,11 @@ struct FormattedTab: View {
     private func createJSONTree() {
         guard let data = content.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) else {
+            print("Failed to create JSON tree") // Debug print
             return
         }
         jsonRoot = JSONTreeNode(value: json)
+        print("JSON tree created") // Debug print
     }
     
     private func copyToClipboard() {

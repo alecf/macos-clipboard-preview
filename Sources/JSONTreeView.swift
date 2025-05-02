@@ -5,6 +5,7 @@ struct JSONTreeView: NSViewRepresentable {
     @Binding var rootNode: JSONTreeNode
     @Binding var selectedPath: String
     @EnvironmentObject var contentManager: WindowContentManager
+    @EnvironmentObject var clipboardManager: ClipboardManager
     let onCoordinatorCreated: (Coordinator) -> Void
     
     init(rootNode: Binding<JSONTreeNode>, selectedPath: Binding<String>, onCoordinatorCreated: @escaping (Coordinator) -> Void) {
@@ -14,7 +15,7 @@ struct JSONTreeView: NSViewRepresentable {
     }
     
     func makeCoordinator() -> Coordinator {
-        let coordinator = Coordinator(rootNode: $rootNode, selectedPath: $selectedPath, contentManager: contentManager)
+        let coordinator = Coordinator(rootNode: $rootNode, selectedPath: $selectedPath, clipboardManager: clipboardManager)
         onCoordinatorCreated(coordinator)
         return coordinator
     }
@@ -32,8 +33,11 @@ struct JSONTreeView: NSViewRepresentable {
         outlineView.selectionHighlightStyle = .regular
         outlineView.allowsEmptySelection = true
         outlineView.focusRingType = .none
+        
+        // Set up double-click handling
         outlineView.target = context.coordinator
         outlineView.doubleAction = #selector(Coordinator.handleDoubleClick(_:))
+        outlineView.action = nil // Ensure single clicks don't interfere
         
         // Add column
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("JSONColumn"))
@@ -55,9 +59,8 @@ struct JSONTreeView: NSViewRepresentable {
         outlineView.frame = scrollView.bounds
         outlineView.autoresizingMask = [.width, .height]
         
+        // Store reference and expand items
         context.coordinator.outlineView = outlineView
-        
-        // Expand all items
         outlineView.expandItem(nil, expandChildren: true)
         
         return scrollView
@@ -79,13 +82,13 @@ struct JSONTreeView: NSViewRepresentable {
         @Binding var rootNode: JSONTreeNode
         @Binding var selectedPath: String
         weak var outlineView: NSOutlineView?
-        let contentManager: WindowContentManager
+        let clipboardManager: ClipboardManager
         private var selectedRow: Int = -1
         
-        init(rootNode: Binding<JSONTreeNode>, selectedPath: Binding<String>, contentManager: WindowContentManager) {
+        init(rootNode: Binding<JSONTreeNode>, selectedPath: Binding<String>, clipboardManager: ClipboardManager) {
             _rootNode = rootNode
             _selectedPath = selectedPath
-            self.contentManager = contentManager
+            self.clipboardManager = clipboardManager
             super.init()
         }
         
@@ -224,11 +227,28 @@ struct JSONTreeView: NSViewRepresentable {
         }
         
         @objc func handleDoubleClick(_ sender: Any?) {
-            guard let outlineView = sender as? NSOutlineView else { return }
+            guard let outlineView = outlineView,
+                  outlineView.clickedRow >= 0,
+                  let node = outlineView.item(atRow: outlineView.clickedRow) as? JSONTreeNode else {
+                return
+            }
+            
             let clickedRow = outlineView.clickedRow
-            guard clickedRow >= 0,
-                  let node = outlineView.item(atRow: clickedRow) as? JSONTreeNode else { return }
-            contentManager.broadcastJsonPath(node.jsonPath())
+            
+            // Update selection
+            outlineView.selectRowIndexes(IndexSet(integer: clickedRow), byExtendingSelection: false)
+            selectedRow = clickedRow
+            
+            // Broadcast the path
+            let path = node.jsonPath()
+            selectedPath = path
+            clipboardManager.broadcastJsonPath(path)
+            
+            // Emphasize the selection
+            if let rowView = outlineView.rowView(atRow: clickedRow, makeIfNecessary: true) {
+                rowView.isSelected = true
+                rowView.isEmphasized = true
+            }
         }
         
         func selectItemWithPath(_ path: String, in outlineView: NSOutlineView) {
@@ -246,16 +266,25 @@ struct JSONTreeView: NSViewRepresentable {
             }
             
             if let node = findNode(path: path, in: rootNode) {
+                // First expand all parent nodes
                 var parent: JSONTreeNode? = node
                 while parent != nil {
                     outlineView.expandItem(parent)
                     parent = parent?.parent
                 }
                 
+                // Find and select the row
                 let row = outlineView.row(forItem: node)
                 if row >= 0 {
                     outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
                     outlineView.scrollRowToVisible(row)
+                    
+                    // Update selected row and emphasize it
+                    selectedRow = row
+                    if let rowView = outlineView.rowView(atRow: row, makeIfNecessary: true) {
+                        rowView.isSelected = true
+                        rowView.isEmphasized = true
+                    }
                 }
             }
         }

@@ -116,6 +116,7 @@ class WindowContentManager: ObservableObject {
 // Main clipboard manager that monitors the clipboard and manages windows
 class ClipboardManager: ObservableObject {
     @Published var windowItems: [WindowItem] = []
+    @Published private(set) var broadcastedJsonPath: String?
     private var lastChangeCount: Int
     private var timer: Timer?
     private var notificationObserver: Any?
@@ -231,5 +232,12 @@ class ClipboardManager: ObservableObject {
         guard let window = windowItem.window else { return }
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    func broadcastJsonPath(_ path: String) {
+        print("Broadcasting to all windows: \(path)")
+        DispatchQueue.main.async {
+            self.broadcastedJsonPath = path
+        }
     }
 } 

@@ -93,6 +93,7 @@ struct FormattedTab: View {
     let content: String
     let contentType: ClipboardManager.ContentType
     @State private var jsonRoot: JSONTreeNode?
+    @State private var selectedPath: String = "$"
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -107,8 +108,16 @@ struct FormattedTab: View {
                 }
             }
             
+            if contentType == .json {
+                Text(selectedPath)
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+            }
+            
             if contentType == .json, let root = jsonRoot {
-                JSONTreeView(rootNode: .constant(root))
+                JSONTreeView(rootNode: .constant(root), selectedPath: $selectedPath)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {

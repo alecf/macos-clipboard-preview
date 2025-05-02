@@ -6,19 +6,21 @@ class JSONTreeNode: Identifiable {
     let value: Any
     var children: [JSONTreeNode]?
     var isExpanded: Bool
+    weak var parent: JSONTreeNode?
     
-    init(key: String? = nil, value: Any, isExpanded: Bool = true) {
+    init(key: String? = nil, value: Any, isExpanded: Bool = true, parent: JSONTreeNode? = nil) {
         self.key = key
         self.value = value
         self.isExpanded = isExpanded
+        self.parent = parent
         
         if let array = value as? [Any] {
             self.children = array.enumerated().map { (index, value) in
-                JSONTreeNode(key: "[\(index)]", value: value, isExpanded: true)
+                JSONTreeNode(key: "[\(index)]", value: value, isExpanded: true, parent: self)
             }
         } else if let dict = value as? [String: Any] {
             self.children = dict.map { (key, value) in
-                JSONTreeNode(key: key, value: value, isExpanded: true)
+                JSONTreeNode(key: key, value: value, isExpanded: true, parent: self)
             }.sorted { $0.key ?? "" < $1.key ?? "" }
         }
     }
@@ -59,5 +61,31 @@ class JSONTreeNode: Identifiable {
         }
         
         return "\(value)"
+    }
+    
+    // Calculate JSONPath for this node
+    func jsonPath() -> String {
+        var path = [String]()
+        var current: JSONTreeNode? = self
+        
+        while let node = current {
+            if let key = node.key {
+                // If key starts with [, it's an array index
+                if key.hasPrefix("[") {
+                    path.insert(key, at: 0)
+                } else {
+                    path.insert("." + key, at: 0)
+                }
+            }
+            current = node.parent
+        }
+        
+        // If path is empty, return root indicator
+        if path.isEmpty {
+            return "$"
+        }
+        
+        // Join all parts and prepend with root indicator
+        return "$" + path.joined()
     }
 } 

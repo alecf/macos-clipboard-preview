@@ -3,6 +3,7 @@ import AppKit
 
 struct JSONTreeView: NSViewRepresentable {
     @Binding var rootNode: JSONTreeNode
+    @Binding var selectedPath: String
     
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -16,7 +17,7 @@ struct JSONTreeView: NSViewRepresentable {
         outlineView.dataSource = context.coordinator
         outlineView.selectionHighlightStyle = .regular
         outlineView.allowsEmptySelection = true
-        outlineView.focusRingType = .none // Prevent focus ring
+        outlineView.focusRingType = .none
         
         // Add column
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("JSONColumn"))
@@ -26,7 +27,7 @@ struct JSONTreeView: NSViewRepresentable {
         
         // Remove header and make column fill width
         outlineView.headerView = nil
-        column.width = 1000 // Make column very wide
+        column.width = 1000
         
         // Set up scroll view
         scrollView.documentView = outlineView
@@ -52,15 +53,17 @@ struct JSONTreeView: NSViewRepresentable {
     }
     
     func makeCoordinator() -> Coordinator {
-        Coordinator(rootNode: $rootNode)
+        Coordinator(rootNode: $rootNode, selectedPath: $selectedPath)
     }
     
     class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
         @Binding var rootNode: JSONTreeNode
+        @Binding var selectedPath: String
         private var selectedRow: Int = -1
         
-        init(rootNode: Binding<JSONTreeNode>) {
+        init(rootNode: Binding<JSONTreeNode>, selectedPath: Binding<String>) {
             _rootNode = rootNode
+            _selectedPath = selectedPath
         }
         
         // Data source methods
@@ -178,6 +181,13 @@ struct JSONTreeView: NSViewRepresentable {
         func outlineViewSelectionDidChange(_ notification: Notification) {
             guard let outlineView = notification.object as? NSOutlineView else { return }
             selectedRow = outlineView.selectedRow
+            
+            // Update selected path
+            if let item = outlineView.item(atRow: selectedRow) as? JSONTreeNode {
+                selectedPath = item.jsonPath()
+            } else {
+                selectedPath = "$"
+            }
         }
         
         func outlineViewSelectionIsChanging(_ notification: Notification) {

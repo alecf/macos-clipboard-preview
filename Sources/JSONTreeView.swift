@@ -8,7 +8,6 @@ struct JSONTreeView: NSViewRepresentable {
     var onCoordinatorCreated: ((Coordinator) -> Void)?
     
     func makeNSView(context: Context) -> NSScrollView {
-        print("makeNSView called")
         // Store coordinator in parent if requested
         onCoordinatorCreated?(context.coordinator)
         
@@ -48,7 +47,6 @@ struct JSONTreeView: NSViewRepresentable {
         outlineView.autoresizingMask = [.width, .height]
         
         // Store the outline view in coordinator
-        print("Setting outline view in coordinator")
         context.coordinator.outlineView = outlineView
         
         // Expand all items
@@ -58,7 +56,6 @@ struct JSONTreeView: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        print("updateNSView called")
         guard let outlineView = nsView.documentView as? NSOutlineView else { return }
         outlineView.reloadData()
         // Re-expand all items after reload
@@ -66,16 +63,12 @@ struct JSONTreeView: NSViewRepresentable {
         
         // Ensure coordinator still has reference
         if context.coordinator.outlineView == nil {
-            print("Restoring outline view reference in coordinator")
             context.coordinator.outlineView = outlineView
         }
     }
     
     func makeCoordinator() -> Coordinator {
-        print("makeCoordinator called")
-        let coordinator = Coordinator(rootNode: $rootNode, selectedPath: $selectedPath, clipboardManager: clipboardManager)
-        print("Created coordinator: \(ObjectIdentifier(coordinator))")
-        return coordinator
+        Coordinator(rootNode: $rootNode, selectedPath: $selectedPath, clipboardManager: clipboardManager)
     }
     
     class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
@@ -83,39 +76,20 @@ struct JSONTreeView: NSViewRepresentable {
         @Binding var selectedPath: String
         private var selectedRow: Int = -1
         private let clipboardManager: ClipboardManager
-        weak var outlineView: NSOutlineView? {
-            didSet {
-                if let view = outlineView {
-                    print("Outline view set in coordinator \(ObjectIdentifier(self)): \(ObjectIdentifier(view))")
-                } else {
-                    print("Outline view cleared in coordinator \(ObjectIdentifier(self))")
-                }
-            }
-        }
+        weak var outlineView: NSOutlineView?
         
         init(rootNode: Binding<JSONTreeNode>, selectedPath: Binding<String>, clipboardManager: ClipboardManager) {
-            print("Initializing coordinator")
             _rootNode = rootNode
             _selectedPath = selectedPath
             self.clipboardManager = clipboardManager
             super.init()
         }
         
-        deinit {
-            print("Coordinator \(ObjectIdentifier(self)) being deallocated")
-        }
-        
         @objc func handleDoubleClick(_ sender: Any?) {
-            print("Double click detected")
-            guard let outlineView = sender as? NSOutlineView else {
-                print("Sender is not an NSOutlineView")
-                return
-            }
+            guard let outlineView = sender as? NSOutlineView else { return }
             let clickedRow = outlineView.clickedRow
-            print("Clicked row: \(clickedRow)")
             if clickedRow >= 0, let item = outlineView.item(atRow: clickedRow) as? JSONTreeNode {
                 let path = item.jsonPath()
-                print("Broadcasting path: \(path)")
                 clipboardManager.broadcastJsonPath(path)
             }
         }
@@ -235,15 +209,12 @@ struct JSONTreeView: NSViewRepresentable {
         func outlineViewSelectionDidChange(_ notification: Notification) {
             guard let outlineView = notification.object as? NSOutlineView else { return }
             selectedRow = outlineView.selectedRow
-            print("Selection changed to row: \(selectedRow)")
             
             // Update selected path
             if let item = outlineView.item(atRow: selectedRow) as? JSONTreeNode {
                 let path = item.jsonPath()
-                print("Updating selected path to: \(path)")
                 selectedPath = path
             } else {
-                print("Setting default path: $")
                 selectedPath = "$"
             }
         }
@@ -264,11 +235,8 @@ struct JSONTreeView: NSViewRepresentable {
         
         // Handle selection from broadcast
         func selectItemWithPath(_ path: String, in outlineView: NSOutlineView) {
-            print("Selecting item with path: \(path)")
-            
             // Helper function to find a node with a specific path
             func findNode(matching path: String, in node: JSONTreeNode) -> JSONTreeNode? {
-                print("Checking node with path: \(node.jsonPath())")
                 if node.jsonPath() == path {
                     return node
                 }
@@ -283,15 +251,10 @@ struct JSONTreeView: NSViewRepresentable {
             }
             
             if let node = findNode(matching: path, in: rootNode) {
-                print("Found matching node")
                 let row = outlineView.row(forItem: node)
-                print("Node is at row: \(row)")
                 if row >= 0 {
                     outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                    print("Selected row \(row)")
                 }
-            } else {
-                print("No matching node found for path: \(path)")
             }
         }
     }

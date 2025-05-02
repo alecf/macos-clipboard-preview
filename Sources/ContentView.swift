@@ -101,10 +101,6 @@ struct FormattedTab: View {
         @Published var coordinator: JSONTreeView.Coordinator?
         
         func setCoordinator(_ newCoordinator: JSONTreeView.Coordinator) {
-            print("ViewState: Setting coordinator \(ObjectIdentifier(newCoordinator))")
-            if let existing = coordinator {
-                print("ViewState: Replacing existing coordinator \(ObjectIdentifier(existing))")
-            }
             coordinator = newCoordinator
         }
     }
@@ -133,7 +129,6 @@ struct FormattedTab: View {
             if contentType == .json, let root = jsonRoot {
                 JSONTreeView(rootNode: .constant(root), selectedPath: $selectedPath,
                            onCoordinatorCreated: { newCoordinator in
-                    print("JSONTreeView created with coordinator: \(ObjectIdentifier(newCoordinator))")
                     viewState.setCoordinator(newCoordinator)
                 })
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -150,27 +145,16 @@ struct FormattedTab: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding()
         .onAppear {
-            print("FormattedTab appeared")
             if contentType == .json {
                 createJSONTree()
             }
         }
         .onChange(of: clipboardManager.broadcastedJsonPath) { newPath in
-            print("Received broadcast in FormattedTab: \(String(describing: newPath))")
-            if let path = newPath {
-                print("Have path: \(path)")
-                if let currentCoordinator = viewState.coordinator {
-                    print("Have coordinator from ViewState: \(ObjectIdentifier(currentCoordinator))")
-                    if let outlineView = currentCoordinator.outlineView {
-                        print("Have outline view: \(ObjectIdentifier(outlineView))")
-                        selectedPath = path
-                        currentCoordinator.selectItemWithPath(path, in: outlineView)
-                    } else {
-                        print("Coordinator has no outline view")
-                    }
-                } else {
-                    print("No coordinator available in ViewState")
-                }
+            if let path = newPath,
+               let currentCoordinator = viewState.coordinator,
+               let outlineView = currentCoordinator.outlineView {
+                selectedPath = path
+                currentCoordinator.selectItemWithPath(path, in: outlineView)
             }
         }
     }

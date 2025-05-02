@@ -130,10 +130,18 @@ struct FormattedTab: View {
                 List(clipboardManager.copiedURLs) { urlItem in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(urlItem.url)
-                                .font(.body)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
+                            Button(action: {
+                                if let url = URL(string: urlItem.url) {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }) {
+                                Text(urlItem.url)
+                                    .font(.body)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .foregroundColor(.blue)
+                            }
+                            .buttonStyle(LinkButtonStyle())
                             Text(urlItem.date, style: .relative)
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -295,10 +303,18 @@ struct URLListView: View {
                     ForEach(clipboardManager.copiedURLs) { urlItem in
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(urlItem.url)
-                                    .font(.body)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
+                                Button(action: {
+                                    if let url = URL(string: urlItem.url) {
+                                        NSWorkspace.shared.open(url)
+                                    }
+                                }) {
+                                    Text(urlItem.url)
+                                        .font(.body)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                        .foregroundColor(.blue)
+                                }
+                                .buttonStyle(LinkButtonStyle())
                                 Text(minutesAgoString(from: urlItem.date))
                                     .font(.caption)
                                     .foregroundColor(.secondary)
@@ -320,5 +336,31 @@ struct URLListView: View {
         .listStyle(PlainListStyle())
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(colorScheme == .dark ? Color.black : Color(NSColor.windowBackgroundColor))
+    }
+}
+
+struct LinkButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .modifier(UnderlineOnHover())
+            .onHover { hovering in
+                if hovering {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+    }
+}
+
+struct UnderlineOnHover: ViewModifier {
+    @State private var hovering = false
+
+    func body(content: Content) -> some View {
+        content
+            .underline(hovering, color: .blue)
+            .onHover { isHovering in
+                hovering = isHovering
+            }
     }
 } 

@@ -16,6 +16,7 @@ A modern macOS app that monitors your clipboard and provides instant previews of
   - Formatted: Shows the prettified/formatted version
 - Menu bar integration
 - Copy formatted content back to clipboard
+- URL List: View and manage a history of all URLs copied to your clipboard
 
 ## Requirements
 
@@ -39,6 +40,16 @@ A modern macOS app that monitors your clipboard and provides instant previews of
    - Formatted: Shows the prettified version
 4. Use the "Copy" button in the Formatted tab to copy the formatted content back to your clipboard
 5. Click the menu bar icon to access the quit option
+
+### URL List Feature
+
+The app keeps a running history of all URLs you copy to your clipboard. You can:
+
+- View a dedicated list of recently copied URLs, including when each was copied
+- Quickly copy a URL again by selecting it from the list
+- Remove URLs from your history with the trash button
+
+This feature helps you keep track of important links and easily access them later.
 
 ## Dependencies
 

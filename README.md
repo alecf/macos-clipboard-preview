@@ -1,5 +1,7 @@
 # Clipboard Preview
 
+> **Note:** This entire app was vibe-coded using [Cursor](https://www.cursor.com/)! ✨
+
 A modern macOS app that monitors your clipboard and provides instant previews of copied content with formatting support.
 
 ## Features

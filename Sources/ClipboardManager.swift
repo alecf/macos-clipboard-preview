@@ -117,6 +117,7 @@ class WindowContentManager: ObservableObject {
 class ClipboardManager: ObservableObject {
     @Published var windowItems: [WindowItem] = []
     @Published private(set) var broadcastedJsonPath: String?
+    @Published private(set) var broadcastCounter: Int = 0  // Add counter for broadcasts
     private var lastChangeCount: Int
     private var timer: Timer?
     private var notificationObserver: Any?
@@ -184,17 +185,6 @@ class ClipboardManager: ObservableObject {
             return
         }
         
-        // Create window item
-        let windowItem = WindowItem(
-            id: UUID(),
-            title: "Clipboard Preview",
-            content: content,
-            selectedTab: 0
-        )
-        
-        // Create content manager
-        let contentManager = WindowContentManager(content: content)
-        
         // Create window
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
@@ -203,10 +193,22 @@ class ClipboardManager: ObservableObject {
             defer: false
         )
         
+        // Create window item with window reference
+        let windowItem = WindowItem(
+            id: UUID(),
+            title: "Clipboard Preview",
+            content: content,
+            window: window,  // Include window reference here
+            selectedTab: 0
+        )
+        
+        // Create content manager
+        let contentManager = WindowContentManager(content: content)
+        
         window.title = windowItem.previewTitle
         window.center()
         
-        // Create hosting view with environment objects
+        // Create hosting view with environment objects using the windowItem that has the window reference
         let hostingView = NSHostingView(
             rootView: ContentView(windowItem: windowItem)
                 .environmentObject(self)
@@ -214,14 +216,8 @@ class ClipboardManager: ObservableObject {
         )
         window.contentView = hostingView
         
-        // Store window reference and add to items
-        windowItems.append(WindowItem(
-            id: windowItem.id,
-            title: windowItem.title,
-            content: content,
-            window: window,
-            selectedTab: windowItem.selectedTab
-        ))
+        // Add to items
+        windowItems.append(windowItem)
         
         // Show window
         window.makeKeyAndOrderFront(nil)
@@ -235,9 +231,9 @@ class ClipboardManager: ObservableObject {
     }
     
     func broadcastJsonPath(_ path: String) {
-        print("Broadcasting to all windows: \(path)")
         DispatchQueue.main.async {
             self.broadcastedJsonPath = path
+            self.broadcastCounter += 1  // Increment counter on each broadcast
         }
     }
 } 

@@ -141,9 +141,9 @@ struct FormattedTab: View {
                 createJSONTree()
             }
         }
-        .onChange(of: clipboardManager.broadcastedJsonPath) { oldValue, newValue in
+        .onChange(of: clipboardManager.broadcastCounter) { oldValue, newValue in
             if contentType == .json, // Only handle if we're showing JSON
-               let path = newValue,
+               let path = clipboardManager.broadcastedJsonPath,
                let currentCoordinator = viewState.coordinator,
                let outlineView = currentCoordinator.outlineView {
                 // Try to find the node at the path
@@ -156,13 +156,14 @@ struct FormattedTab: View {
                         // First make sure the app is active
                         NSApp.activate(ignoringOtherApps: true)
                         
-                        // Then bring the window to front
-                        window.level = .floating // Temporarily raise window level
-                        window.makeKeyAndOrderFront(nil)
+                        // Force window to front
+                        window.orderFrontRegardless()
+                        window.level = .modalPanel // Use a higher level temporarily
                         
-                        // Schedule window level reset
+                        // Reset window level after a moment
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                             window.level = .normal
+                            window.makeKey() // Ensure window has focus
                         }
                     }
                 }

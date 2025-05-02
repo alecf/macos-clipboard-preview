@@ -4,97 +4,69 @@ import AppKit
 struct JSONTreeView: NSViewRepresentable {
     @Binding var rootNode: JSONTreeNode
     @Binding var selectedPath: String
-    @EnvironmentObject var clipboardManager: ClipboardManager
-    var onCoordinatorCreated: ((Coordinator) -> Void)?
+    @EnvironmentObject var contentManager: WindowContentManager
+    let onCoordinatorCreated: (Coordinator) -> Void
+    
+    init(rootNode: Binding<JSONTreeNode>, selectedPath: Binding<String>, onCoordinatorCreated: @escaping (Coordinator) -> Void) {
+        _rootNode = rootNode
+        _selectedPath = selectedPath
+        self.onCoordinatorCreated = onCoordinatorCreated
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        let coordinator = Coordinator(rootNode: $rootNode, selectedPath: $selectedPath, contentManager: contentManager)
+        onCoordinatorCreated(coordinator)
+        return coordinator
+    }
     
     func makeNSView(context: Context) -> NSScrollView {
-        // Store coordinator in parent if requested
-        onCoordinatorCreated?(context.coordinator)
-        
         let scrollView = NSScrollView()
         let outlineView = NSOutlineView()
         
-        // Configure outline view
-        outlineView.style = .plain
-        outlineView.rowSizeStyle = .default
-        outlineView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
         outlineView.delegate = context.coordinator
         outlineView.dataSource = context.coordinator
-        outlineView.selectionHighlightStyle = .regular
-        outlineView.allowsEmptySelection = true
-        outlineView.focusRingType = .none
         outlineView.target = context.coordinator
         outlineView.doubleAction = #selector(Coordinator.handleDoubleClick(_:))
         
-        // Add column
-        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("JSONColumn"))
-        column.title = "JSON"
-        outlineView.addTableColumn(column)
-        outlineView.outlineTableColumn = column
-        
-        // Remove header and make column fill width
         outlineView.headerView = nil
-        column.width = 1000
+        outlineView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
         
-        // Set up scroll view
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("JSONTree"))
+        column.title = "JSON Tree"
+        outlineView.addTableColumn(column)
+        
         scrollView.documentView = outlineView
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
-        scrollView.autohidesScrollers = true
         
-        // Make outline view fill scroll view
-        outlineView.frame = scrollView.bounds
-        outlineView.autoresizingMask = [.width, .height]
-        
-        // Store the outline view in coordinator
         context.coordinator.outlineView = outlineView
-        
-        // Expand all items
-        outlineView.expandItem(nil, expandChildren: true)
         
         return scrollView
     }
     
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let outlineView = nsView.documentView as? NSOutlineView else { return }
-        outlineView.reloadData()
-        // Re-expand all items after reload
-        outlineView.expandItem(nil, expandChildren: true)
         
-        // Ensure coordinator still has reference
         if context.coordinator.outlineView == nil {
             context.coordinator.outlineView = outlineView
         }
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(rootNode: $rootNode, selectedPath: $selectedPath, clipboardManager: clipboardManager)
+        
+        outlineView.reloadData()
     }
     
     class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
         @Binding var rootNode: JSONTreeNode
         @Binding var selectedPath: String
-        private var selectedRow: Int = -1
-        private let clipboardManager: ClipboardManager
         weak var outlineView: NSOutlineView?
+        let contentManager: WindowContentManager
         
-        init(rootNode: Binding<JSONTreeNode>, selectedPath: Binding<String>, clipboardManager: ClipboardManager) {
+        init(rootNode: Binding<JSONTreeNode>, selectedPath: Binding<String>, contentManager: WindowContentManager) {
             _rootNode = rootNode
             _selectedPath = selectedPath
-            self.clipboardManager = clipboardManager
+            self.contentManager = contentManager
             super.init()
         }
         
-        @objc func handleDoubleClick(_ sender: Any?) {
-            guard let outlineView = sender as? NSOutlineView else { return }
-            let clickedRow = outlineView.clickedRow
-            if clickedRow >= 0, let item = outlineView.item(atRow: clickedRow) as? JSONTreeNode {
-                let path = item.jsonPath()
-                clipboardManager.broadcastJsonPath(path)
-            }
-        }
-        
-        // Data source methods
         func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
             if item == nil {
                 return 1
@@ -108,152 +80,68 @@ struct JSONTreeView: NSViewRepresentable {
                 return rootNode
             }
             guard let node = item as? JSONTreeNode,
-                  let children = node.children else { return JSONTreeNode(value: "") }
+                  let children = node.children else { return JSONTreeNode(value: NSNull()) }
             return children[index]
         }
         
         func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
             guard let node = item as? JSONTreeNode else { return false }
-            return !node.isLeaf
+            return !(node.children?.isEmpty ?? true)
         }
         
-        // Delegate methods
         func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
             guard let node = item as? JSONTreeNode else { return nil }
             
-            let stackView = NSStackView()
-            stackView.orientation = .horizontal
-            stackView.spacing = 0
+            let text = NSTextField()
+            text.isEditable = false
+            text.isBordered = false
+            text.drawsBackground = false
+            text.stringValue = node.displayString
             
-            // Split the display string into key and value parts
-            let parts = node.displayString.split(separator: "\u{001F}", omittingEmptySubsequences: false)
-            
-            if parts.count > 1 {
-                // Has key part
-                let keyField = NSTextField()
-                keyField.isEditable = false
-                keyField.isBordered = false
-                keyField.drawsBackground = false
-                keyField.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
-                keyField.stringValue = String(parts[1])  // The key part
-                keyField.textColor = .secondaryLabelColor
-                stackView.addArrangedSubview(keyField)
-                
-                // Add the colon and space
-                let colonField = NSTextField()
-                colonField.isEditable = false
-                colonField.isBordered = false
-                colonField.drawsBackground = false
-                colonField.stringValue = ": "
-                colonField.textColor = .labelColor
-                stackView.addArrangedSubview(colonField)
-                
-                // Value part
-                let valueField = NSTextField()
-                valueField.isEditable = false
-                valueField.isBordered = false
-                valueField.drawsBackground = false
-                valueField.stringValue = String(parts[2])
-                valueField.maximumNumberOfLines = 0
-                valueField.lineBreakMode = .byWordWrapping
-                
-                // Style based on content type
-                if node.isLeaf {
-                    if node.value is String {
-                        valueField.textColor = .systemGreen
-                    } else if node.value is NSNumber {
-                        valueField.textColor = .systemBlue
-                    } else if node.value is NSNull {
-                        valueField.textColor = .systemGray
-                    } else {
-                        valueField.textColor = .labelColor
-                    }
-                } else {
-                    // Use normal font and bright color for all collection types
-                    valueField.font = .systemFont(ofSize: NSFont.systemFontSize)
-                    valueField.textColor = .labelColor
-                }
-                
-                stackView.addArrangedSubview(valueField)
-            } else {
-                // No key part (root value)
-                let valueField = NSTextField()
-                valueField.isEditable = false
-                valueField.isBordered = false
-                valueField.drawsBackground = false
-                valueField.stringValue = node.displayString
-                valueField.maximumNumberOfLines = 0
-                valueField.lineBreakMode = .byWordWrapping
-                valueField.font = .systemFont(ofSize: NSFont.systemFontSize)
-                valueField.textColor = .labelColor
-                
-                stackView.addArrangedSubview(valueField)
-            }
-            
-            return stackView
+            return text
         }
         
-        func outlineView(_ outlineView: NSOutlineView, shouldExpandItem item: Any) -> Bool {
-            guard let node = item as? JSONTreeNode else { return false }
-            node.isExpanded = true
-            return true
-        }
-        
-        func outlineView(_ outlineView: NSOutlineView, shouldCollapseItem item: Any) -> Bool {
-            guard let node = item as? JSONTreeNode else { return false }
-            node.isExpanded = false
-            return true
-        }
-        
-        // Selection handling
         func outlineViewSelectionDidChange(_ notification: Notification) {
             guard let outlineView = notification.object as? NSOutlineView else { return }
-            selectedRow = outlineView.selectedRow
-            
-            // Update selected path
-            if let item = outlineView.item(atRow: selectedRow) as? JSONTreeNode {
-                let path = item.jsonPath()
-                selectedPath = path
-            } else {
-                selectedPath = "$"
-            }
+            let selectedRow = outlineView.selectedRow
+            guard selectedRow >= 0,
+                  let node = outlineView.item(atRow: selectedRow) as? JSONTreeNode else { return }
+            selectedPath = node.jsonPath()
         }
         
-        func outlineViewSelectionIsChanging(_ notification: Notification) {
-            guard let outlineView = notification.object as? NSOutlineView else { return }
-            outlineView.enumerateAvailableRowViews { rowView, _ in
-                rowView.isEmphasized = true
-            }
+        @objc func handleDoubleClick(_ sender: Any?) {
+            guard let outlineView = sender as? NSOutlineView else { return }
+            let clickedRow = outlineView.clickedRow
+            guard clickedRow >= 0,
+                  let node = outlineView.item(atRow: clickedRow) as? JSONTreeNode else { return }
+            contentManager.broadcastJsonPath(node.jsonPath())
         }
         
-        func outlineView(_ outlineView: NSOutlineView, didAdd rowView: NSTableRowView, forRow row: Int) {
-            if row == selectedRow {
-                rowView.isSelected = true
-                rowView.isEmphasized = true
-            }
-        }
-        
-        // Handle selection from broadcast
         func selectItemWithPath(_ path: String, in outlineView: NSOutlineView) {
-            // Helper function to find a node with a specific path
-            func findNode(matching path: String, in node: JSONTreeNode) -> JSONTreeNode? {
+            func findNode(path: String, in node: JSONTreeNode) -> JSONTreeNode? {
                 if node.jsonPath() == path {
                     return node
                 }
-                if let children = node.children {
-                    for child in children {
-                        if let match = findNode(matching: path, in: child) {
-                            return match
-                        }
+                guard let children = node.children else { return nil }
+                for child in children {
+                    if let found = findNode(path: path, in: child) {
+                        return found
                     }
                 }
                 return nil
             }
             
-            if let node = findNode(matching: path, in: rootNode) {
+            if let node = findNode(path: path, in: rootNode) {
+                var parent: JSONTreeNode? = node
+                while parent != nil {
+                    outlineView.expandItem(parent)
+                    parent = parent?.parent
+                }
+                
                 let row = outlineView.row(forItem: node)
                 if row >= 0 {
                     outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                    outlineView.scrollRowToVisible(row)
                 }
             }
         }

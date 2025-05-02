@@ -3,6 +3,7 @@ import Down
 
 struct ContentView: View {
     @EnvironmentObject var clipboardManager: ClipboardManager
+    @EnvironmentObject var contentManager: WindowContentManager
     let windowItem: WindowItem
     @State private var selectedTab: Int
     
@@ -14,16 +15,16 @@ struct ContentView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             // Preview Tab
-            PreviewTab(content: clipboardManager.currentContent,
-                      contentType: clipboardManager.contentType)
+            PreviewTab(content: contentManager.currentContent,
+                      contentType: contentManager.contentType)
                 .tabItem {
                     Label("Preview", systemImage: "eye")
                 }
                 .tag(0)
             
             // Formatted Tab
-            FormattedTab(content: clipboardManager.formattedContent,
-                        contentType: clipboardManager.contentType)
+            FormattedTab(content: contentManager.formattedContent,
+                        contentType: contentManager.contentType)
                 .tabItem {
                     Label("Formatted", systemImage: "wand.and.stars")
                 }
@@ -33,26 +34,14 @@ struct ContentView: View {
         .padding()
         .onAppear {
             // Set initial tab based on content only for new windows
-            if selectedTab == 0 && clipboardManager.hasFormattedContent {
+            if selectedTab == 0 && contentManager.hasFormattedContent {
                 selectedTab = 1
             }
         }
-        .onChange(of: clipboardManager.currentContent) { _ in
-            // Reset to preview tab when new content arrives only if this window matches the current content
-            if windowItem.content == clipboardManager.currentContent {
-                selectedTab = 0
-            }
-        }
-        .onChange(of: clipboardManager.hasFormattedContent) { success in
-            // Switch to formatted tab only if this window matches the current content
-            if success && windowItem.content == clipboardManager.currentContent {
-                selectedTab = 1
-            }
-        }
-        .onChange(of: selectedTab) { newTab in
+        .onChange(of: selectedTab) { oldValue, newValue in
             // Update the window item's selected tab
             if let index = clipboardManager.windowItems.firstIndex(where: { $0.id == windowItem.id }) {
-                clipboardManager.windowItems[index].selectedTab = newTab
+                clipboardManager.windowItems[index].selectedTab = newValue
             }
         }
     }
@@ -60,7 +49,7 @@ struct ContentView: View {
 
 struct PreviewTab: View {
     let content: String
-    let contentType: ClipboardManager.ContentType
+    let contentType: WindowContentManager.ContentType
     
     var body: some View {
         ScrollView {
@@ -91,10 +80,10 @@ struct PreviewTab: View {
 
 struct FormattedTab: View {
     let content: String
-    let contentType: ClipboardManager.ContentType
+    let contentType: WindowContentManager.ContentType
     @State private var jsonRoot: JSONTreeNode?
     @State private var selectedPath: String = "$"
-    @EnvironmentObject var clipboardManager: ClipboardManager
+    @EnvironmentObject var contentManager: WindowContentManager
     @StateObject private var viewState = ViewState()
     
     class ViewState: ObservableObject {
@@ -149,8 +138,8 @@ struct FormattedTab: View {
                 createJSONTree()
             }
         }
-        .onChange(of: clipboardManager.broadcastedJsonPath) { newPath in
-            if let path = newPath,
+        .onChange(of: contentManager.broadcastedJsonPath) { oldValue, newValue in
+            if let path = newValue,
                let currentCoordinator = viewState.coordinator,
                let outlineView = currentCoordinator.outlineView {
                 selectedPath = path

@@ -40,7 +40,6 @@ class ClipboardManager: ObservableObject {
     
     init() {
         lastChangeCount = NSPasteboard.general.changeCount
-        startMonitoring()
         
         // Set up notification for window closing
         notificationObserver = NotificationCenter.default.addObserver(
@@ -52,6 +51,20 @@ class ClipboardManager: ObservableObject {
                   let closedWindow = notification.object as? NSWindow else { return }
             self.windowItems.removeAll { $0.window == closedWindow }
         }
+        
+        // Check initial clipboard content
+        if let initialContent = NSPasteboard.general.string(forType: .string) {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.hasFormattedContent = false  // Reset before processing new content
+                self.currentContent = initialContent
+                self.detectContentType()
+                self.formatContent()
+                self.createAndShowWindow()
+            }
+        }
+        
+        startMonitoring()
     }
     
     deinit {

@@ -77,27 +77,48 @@ struct PreviewTab: View {
 struct FormattedTab: View {
     let content: String
     let contentType: ClipboardManager.ContentType
+    @State private var jsonRoot: JSONTreeNode?
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("Formatted Content")
-                        .font(.headline)
-                    
-                    Spacer()
-                    
-                    Button(action: copyToClipboard) {
-                        Label("Copy", systemImage: "doc.on.doc")
-                    }
-                }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Formatted Content")
+                    .font(.headline)
                 
-                Text(content)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
+                Spacer()
+                
+                Button(action: copyToClipboard) {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            
+            if contentType == .json, let root = jsonRoot {
+                JSONTreeView(rootNode: .constant(root))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    Text(content)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding()
+        .onAppear {
+            if contentType == .json {
+                createJSONTree()
+            }
+        }
+    }
+    
+    private func createJSONTree() {
+        guard let data = content.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) else {
+            return
+        }
+        jsonRoot = JSONTreeNode(value: json)
     }
     
     private func copyToClipboard() {

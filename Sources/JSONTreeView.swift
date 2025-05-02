@@ -23,23 +23,42 @@ struct JSONTreeView: NSViewRepresentable {
         let scrollView = NSScrollView()
         let outlineView = NSOutlineView()
         
+        // Configure outline view
+        outlineView.style = .plain
+        outlineView.rowSizeStyle = .default
+        outlineView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
         outlineView.delegate = context.coordinator
         outlineView.dataSource = context.coordinator
+        outlineView.selectionHighlightStyle = .regular
+        outlineView.allowsEmptySelection = true
+        outlineView.focusRingType = .none
         outlineView.target = context.coordinator
         outlineView.doubleAction = #selector(Coordinator.handleDoubleClick(_:))
         
-        outlineView.headerView = nil
-        outlineView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
-        
-        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("JSONTree"))
-        column.title = "JSON Tree"
+        // Add column
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("JSONColumn"))
+        column.title = "JSON"
         outlineView.addTableColumn(column)
+        outlineView.outlineTableColumn = column
         
+        // Remove header and make column fill width
+        outlineView.headerView = nil
+        column.width = 1000
+        
+        // Set up scroll view
         scrollView.documentView = outlineView
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
+        scrollView.autohidesScrollers = true
+        
+        // Make outline view fill scroll view
+        outlineView.frame = scrollView.bounds
+        outlineView.autoresizingMask = [.width, .height]
         
         context.coordinator.outlineView = outlineView
+        
+        // Expand all items
+        outlineView.expandItem(nil, expandChildren: true)
         
         return scrollView
     }
@@ -52,6 +71,8 @@ struct JSONTreeView: NSViewRepresentable {
         }
         
         outlineView.reloadData()
+        // Re-expand all items after reload
+        outlineView.expandItem(nil, expandChildren: true)
     }
     
     class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
@@ -59,6 +80,7 @@ struct JSONTreeView: NSViewRepresentable {
         @Binding var selectedPath: String
         weak var outlineView: NSOutlineView?
         let contentManager: WindowContentManager
+        private var selectedRow: Int = -1
         
         init(rootNode: Binding<JSONTreeNode>, selectedPath: Binding<String>, contentManager: WindowContentManager) {
             _rootNode = rootNode
@@ -86,27 +108,119 @@ struct JSONTreeView: NSViewRepresentable {
         
         func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
             guard let node = item as? JSONTreeNode else { return false }
-            return !(node.children?.isEmpty ?? true)
+            return !node.isLeaf
         }
         
         func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
             guard let node = item as? JSONTreeNode else { return nil }
             
-            let text = NSTextField()
-            text.isEditable = false
-            text.isBordered = false
-            text.drawsBackground = false
-            text.stringValue = node.displayString
+            let stackView = NSStackView()
+            stackView.orientation = .horizontal
+            stackView.spacing = 0
             
-            return text
+            // Split the display string into key and value parts
+            let parts = node.displayString.split(separator: "\u{001F}", omittingEmptySubsequences: false)
+            
+            if parts.count > 1 {
+                // Has key part
+                let keyField = NSTextField()
+                keyField.isEditable = false
+                keyField.isBordered = false
+                keyField.drawsBackground = false
+                keyField.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+                keyField.stringValue = String(parts[1])  // The key part
+                keyField.textColor = .secondaryLabelColor
+                stackView.addArrangedSubview(keyField)
+                
+                // Add the colon and space
+                let colonField = NSTextField()
+                colonField.isEditable = false
+                colonField.isBordered = false
+                colonField.drawsBackground = false
+                colonField.stringValue = ": "
+                colonField.textColor = .labelColor
+                stackView.addArrangedSubview(colonField)
+                
+                // Value part
+                let valueField = NSTextField()
+                valueField.isEditable = false
+                valueField.isBordered = false
+                valueField.drawsBackground = false
+                valueField.stringValue = String(parts[2])
+                valueField.maximumNumberOfLines = 0
+                valueField.lineBreakMode = .byWordWrapping
+                
+                // Style based on content type
+                if node.isLeaf {
+                    if node.value is String {
+                        valueField.textColor = .systemGreen
+                    } else if node.value is NSNumber {
+                        valueField.textColor = .systemBlue
+                    } else if node.value is NSNull {
+                        valueField.textColor = .systemGray
+                    } else {
+                        valueField.textColor = .labelColor
+                    }
+                } else {
+                    // Use normal font and bright color for all collection types
+                    valueField.font = .systemFont(ofSize: NSFont.systemFontSize)
+                    valueField.textColor = .labelColor
+                }
+                
+                stackView.addArrangedSubview(valueField)
+            } else {
+                // No key part (root value)
+                let valueField = NSTextField()
+                valueField.isEditable = false
+                valueField.isBordered = false
+                valueField.drawsBackground = false
+                valueField.stringValue = node.displayString
+                valueField.maximumNumberOfLines = 0
+                valueField.lineBreakMode = .byWordWrapping
+                valueField.font = .systemFont(ofSize: NSFont.systemFontSize)
+                valueField.textColor = .labelColor
+                
+                stackView.addArrangedSubview(valueField)
+            }
+            
+            return stackView
+        }
+        
+        func outlineView(_ outlineView: NSOutlineView, shouldExpandItem item: Any) -> Bool {
+            guard let node = item as? JSONTreeNode else { return false }
+            node.isExpanded = true
+            return true
+        }
+        
+        func outlineView(_ outlineView: NSOutlineView, shouldCollapseItem item: Any) -> Bool {
+            guard let node = item as? JSONTreeNode else { return false }
+            node.isExpanded = false
+            return true
         }
         
         func outlineViewSelectionDidChange(_ notification: Notification) {
             guard let outlineView = notification.object as? NSOutlineView else { return }
-            let selectedRow = outlineView.selectedRow
-            guard selectedRow >= 0,
-                  let node = outlineView.item(atRow: selectedRow) as? JSONTreeNode else { return }
-            selectedPath = node.jsonPath()
+            selectedRow = outlineView.selectedRow
+            
+            if let item = outlineView.item(atRow: selectedRow) as? JSONTreeNode {
+                selectedPath = item.jsonPath()
+            } else {
+                selectedPath = "$"
+            }
+        }
+        
+        func outlineViewSelectionIsChanging(_ notification: Notification) {
+            guard let outlineView = notification.object as? NSOutlineView else { return }
+            outlineView.enumerateAvailableRowViews { rowView, _ in
+                rowView.isEmphasized = true
+            }
+        }
+        
+        func outlineView(_ outlineView: NSOutlineView, didAdd rowView: NSTableRowView, forRow row: Int) {
+            if row == selectedRow {
+                rowView.isSelected = true
+                rowView.isEmphasized = true
+            }
         }
         
         @objc func handleDoubleClick(_ sender: Any?) {

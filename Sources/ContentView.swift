@@ -150,6 +150,7 @@ struct FormattedTab: View {
                     .padding(.vertical, 2)
                 }
                 .listStyle(PlainListStyle())
+                .frame(maxHeight: .infinity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -270,58 +271,54 @@ struct URLListView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Copied URLs")
-                    .font(.title2)
-                    .bold()
-                Spacer()
-                Button(action: {
-                    clipboardManager.closeURLListWindow()
-                }) {
-                    Image(systemName: "xmark.circle.fill")
+        List {
+            Section(header:
+                HStack {
+                    Text("Copied URLs")
                         .font(.title2)
-                        .foregroundColor(.secondary)
+                        .bold()
+                    Spacer()
                 }
-                .buttonStyle(PlainButtonStyle())
-            }
-            .padding([.top, .horizontal])
-            
-            Divider()
-            
-            if clipboardManager.copiedURLs.isEmpty {
-                Spacer()
-                Text("No URLs copied yet.")
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                Spacer()
-            } else {
-                List(clipboardManager.copiedURLs) { urlItem in
+                .padding(.top)
+                .padding(.bottom, 8)
+                .listRowInsets(EdgeInsets())
+            ) {
+                if clipboardManager.copiedURLs.isEmpty {
                     HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(urlItem.url)
-                                .font(.body)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Text(minutesAgoString(from: urlItem.date))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
                         Spacer()
-                        Button(action: {
-                            clipboardManager.deleteURL(urlItem)
-                        }) {
-                            Image(systemName: "trash")
-                                .foregroundColor(.red)
-                        }
-                        .buttonStyle(BorderlessButtonStyle())
+                        Text("No URLs copied yet.")
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                        Spacer()
                     }
-                    .padding(.vertical, 2)
+                } else {
+                    ForEach(clipboardManager.copiedURLs) { urlItem in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(urlItem.url)
+                                    .font(.body)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Text(minutesAgoString(from: urlItem.date))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Button(action: {
+                                clipboardManager.deleteURL(urlItem)
+                            }) {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                            }
+                            .buttonStyle(BorderlessButtonStyle())
+                        }
+                        .padding(.vertical, 2)
+                    }
                 }
-                .listStyle(PlainListStyle())
             }
         }
-        .frame(minWidth: 400, minHeight: 400)
+        .listStyle(PlainListStyle())
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(colorScheme == .dark ? Color.black : Color(NSColor.windowBackgroundColor))
     }
 } 

@@ -32,6 +32,7 @@ class ClipboardManager: ObservableObject {
     @Published var contentType: ContentType = .plainText
     @Published var windowItems: [WindowItem] = []
     @Published var hasFormattedContent: Bool = false
+    @Published var broadcastedJsonPath: String? = nil  // New property for broadcasting
     
     private var lastChangeCount: Int
     private var timer: Timer?
@@ -258,6 +259,20 @@ class ClipboardManager: ObservableObject {
             formattedContent = html
         } else {
             hasFormattedContent = false  // Only set to false if formatting fails
+        }
+    }
+    
+    // Add new method for broadcasting JSONPath
+    func broadcastJsonPath(_ path: String) {
+        print("Broadcasting JSONPath: \(path)")  // Debug log
+        DispatchQueue.main.async {
+            self.broadcastedJsonPath = path
+            print("Set broadcastedJsonPath to: \(path)")  // Debug log
+            // Reset after a short delay to allow new broadcasts
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                print("Resetting broadcastedJsonPath")  // Debug log
+                self.broadcastedJsonPath = nil
+            }
         }
     }
 } 

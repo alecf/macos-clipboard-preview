@@ -136,9 +136,6 @@ class ClipboardManager: ObservableObject {
     private var timer: Timer?
     private var notificationObserver: Any?
     
-    // Regex for URL detection
-    private let urlRegex = try! NSRegularExpression(pattern: "(https?://[^\\s]+)", options: .caseInsensitive)
-    
     init() {
         self.lastChangeCount = NSPasteboard.general.changeCount
         
@@ -269,11 +266,10 @@ class ClipboardManager: ObservableObject {
     }
     
     private func extractURL(from text: String) -> String? {
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        if let match = urlRegex.firstMatch(in: text, options: [], range: range) {
-            if let urlRange = Range(match.range(at: 1), in: text) {
-                return String(text[urlRange])
-            }
+        // Only consider the entire trimmed string as a URL
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = URL(string: trimmed), url.host != nil {
+            return url.absoluteString
         }
         return nil
     }

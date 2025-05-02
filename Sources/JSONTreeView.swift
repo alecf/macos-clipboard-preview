@@ -9,11 +9,14 @@ struct JSONTreeView: NSViewRepresentable {
         let outlineView = NSOutlineView()
         
         // Configure outline view
-        outlineView.style = .plain // Changed from .sourceList for better appearance
+        outlineView.style = .plain
         outlineView.rowSizeStyle = .default
         outlineView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
         outlineView.delegate = context.coordinator
         outlineView.dataSource = context.coordinator
+        outlineView.selectionHighlightStyle = .regular
+        outlineView.allowsEmptySelection = true
+        outlineView.focusRingType = .none // Prevent focus ring
         
         // Add column
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("JSONColumn"))
@@ -54,6 +57,7 @@ struct JSONTreeView: NSViewRepresentable {
     
     class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
         @Binding var rootNode: JSONTreeNode
+        private var selectedRow: Int = -1
         
         init(rootNode: Binding<JSONTreeNode>) {
             _rootNode = rootNode
@@ -168,6 +172,26 @@ struct JSONTreeView: NSViewRepresentable {
             guard let node = item as? JSONTreeNode else { return false }
             node.isExpanded = false
             return true
+        }
+        
+        // Selection handling
+        func outlineViewSelectionDidChange(_ notification: Notification) {
+            guard let outlineView = notification.object as? NSOutlineView else { return }
+            selectedRow = outlineView.selectedRow
+        }
+        
+        func outlineViewSelectionIsChanging(_ notification: Notification) {
+            guard let outlineView = notification.object as? NSOutlineView else { return }
+            outlineView.enumerateAvailableRowViews { rowView, _ in
+                rowView.isEmphasized = true
+            }
+        }
+        
+        func outlineView(_ outlineView: NSOutlineView, didAdd rowView: NSTableRowView, forRow row: Int) {
+            if row == selectedRow {
+                rowView.isSelected = true
+                rowView.isEmphasized = true
+            }
         }
     }
 } 

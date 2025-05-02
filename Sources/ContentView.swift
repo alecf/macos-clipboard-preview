@@ -127,12 +127,29 @@ struct FormattedTab: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             else {
-                ScrollView {
-                    Text(content)
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                List(clipboardManager.copiedURLs) { urlItem in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(urlItem.url)
+                                .font(.body)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Text(urlItem.date, style: .relative)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Button(action: {
+                            clipboardManager.deleteURL(urlItem)
+                        }) {
+                            Image(systemName: "trash")
+                                .foregroundColor(.red)
+                        }
+                        .buttonStyle(BorderlessButtonStyle())
+                    }
+                    .padding(.vertical, 2)
                 }
+                .listStyle(PlainListStyle())
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -239,7 +256,19 @@ struct WebView: NSViewRepresentable {
 struct URLListView: View {
     @EnvironmentObject var clipboardManager: ClipboardManager
     @Environment(\.colorScheme) var colorScheme
-    
+
+    // Helper to show minutes ago, rounded to the nearest minute
+    func minutesAgoString(from date: Date) -> String {
+        let minutes = Int(Date().timeIntervalSince(date) / 60)
+        if minutes <= 0 {
+            return "just now"
+        } else if minutes == 1 {
+            return "1 minute ago"
+        } else {
+            return "\(minutes) minutes ago"
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -267,29 +296,27 @@ struct URLListView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                 Spacer()
             } else {
-                List {
-                    ForEach(clipboardManager.copiedURLs) { urlItem in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(urlItem.url)
-                                    .font(.body)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                Text(urlItem.date, style: .relative)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                            Button(action: {
-                                clipboardManager.deleteURL(urlItem)
-                            }) {
-                                Image(systemName: "trash")
-                                    .foregroundColor(.red)
-                            }
-                            .buttonStyle(BorderlessButtonStyle())
+                List(clipboardManager.copiedURLs) { urlItem in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(urlItem.url)
+                                .font(.body)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Text(minutesAgoString(from: urlItem.date))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
-                        .padding(.vertical, 2)
+                        Spacer()
+                        Button(action: {
+                            clipboardManager.deleteURL(urlItem)
+                        }) {
+                            Image(systemName: "trash")
+                                .foregroundColor(.red)
+                        }
+                        .buttonStyle(BorderlessButtonStyle())
                     }
+                    .padding(.vertical, 2)
                 }
                 .listStyle(PlainListStyle())
             }
